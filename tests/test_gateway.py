@@ -1,5 +1,5 @@
-import asyncio
-import json
+import sqlite3
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
 
 import pytest
@@ -208,3 +208,36 @@ def test_internal_callback_requires_service_key(demo):
     headers = session(client)
     job = submit(client, headers)
     assert client.post('/internal/jobs/' + job + '/result', json={'status': 'error'}).status_code == 403
+
+
+def test_parallel_browser_decisions_create_only_one_order(demo):
+    _, client, captured, config, _ = demo
+    headers = session(client)
+    job = submit(client, headers)
+    quote_and_report(client, config, captured[0])
+    def approve(_):
+        return client.post('/api/jobs/' + job + '/decision', headers=headers, json={'decision': 'approved'})
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        responses = list(pool.map(approve, range(4)))
+    assert all(response.status_code in (200, 409) for response in responses)
+    assert any(response.status_code == 200 for response in responses)
+    assert client.get('/api/jobs/' + job).json()['status'] == 'created'
+    with sqlite3.connect(config.data_dir / 'erp.sqlite3') as conn:
+        assert conn.execute('SELECT COUNT(*) FROM work_orders').fetchone()[0] == 1
+
+
+def test_https_configuration_uses_secure_session_cookie(tmp_path):
+    config = Settings(tmp_path, 'https://demo.example', 'w' * 40, 'r' * 40, 's' * 40, secure_cookies=True)
+    client = TestClient(create_app(config), base_url='https://demo.example')
+    cookie = client.get('/api/session').headers['set-cookie']
+    assert 'Secure' in cookie and 'HttpOnly' in cookie and 'SameSite=strict' in cookie
+
+
+def test_late_callback_cannot_reopen_expired_planning(demo):
+    _, client, _, config, now = demo
+    headers = session(client)
+    job = submit(client, headers)
+    now[0] += 181
+    result = client.post('/internal/jobs/' + job + '/result', headers={'X-Workflow-Key': config.workflow_key}, json={'status': 'error'})
+    assert result.status_code == 410
+    assert client.get('/api/jobs/' + job).json()['status'] == 'error'

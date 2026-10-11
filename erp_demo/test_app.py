@@ -1,15 +1,8 @@
 """Meaningful API checks: pricing, human approval, tamper resistance and retry safety."""
-import os
 import secrets
 import sqlite3
-import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
-from pathlib import Path
-
-# Keep the module-level app's default state out of the deliverable folder.
-os.environ.setdefault("ERP_DEMO_DB", str(Path(tempfile.gettempdir()) / "n8n-erp-import-check.sqlite3"))
-
 import pytest
 from fastapi.testclient import TestClient
 

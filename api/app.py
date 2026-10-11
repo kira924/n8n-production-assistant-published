@@ -213,7 +213,8 @@ def create_app(settings: Settings | None = None, dispatcher=None, clock=time.tim
             payload = Submission(request_id=job_id, **body.model_dump()).model_dump()
         except ValueError:
             raise HTTPException(422, 'اختر تاريخًا صالحًا خلال السنة القادمة.') from None
-        ip_hash = hmac.new(settings.session_key.encode(), (request.client.host if request.client else 'local').encode(), hashlib.sha256).hexdigest()
+        address = request.headers.get('x-real-ip') or (request.client.host if request.client else 'local')
+        ip_hash = hmac.new(settings.session_key.encode(), address.encode(), hashlib.sha256).hexdigest()
         now = clock()
         with connect() as conn:
             conn.execute('BEGIN IMMEDIATE')
@@ -241,7 +242,7 @@ def create_app(settings: Settings | None = None, dispatcher=None, clock=time.tim
             fail_pending(job_id, 'انتهت مهلة التخطيط. أنشئ طلبًا جديدًا.')
             row = owned_job(job_id, owner(request))
         result = json.loads(row['result']) if row['result'] else {'status': row['status'], 'synthetic': True}
-        return {'id': job_id, **result}
+        return {'id': job_id, **result, 'status': row['status']}
 
     @app.api_route('/internal/erp/{path:path}', methods=['GET', 'POST'])
     async def planning_tool(path: str, request: Request):

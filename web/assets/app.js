@@ -11,6 +11,10 @@ const labels = {planning:'جاري التخطيط',awaiting_review:'جاهز ل�
 const services = {studio:'الاستوديو',camera:'الكاميرات',audio:'تجهيز الصوت',editing:'المونتاج'};
 const money = value => new Intl.NumberFormat('en-US').format(value);
 function show(id, visible) { document.getElementById(id).hidden = !visible; }
+function lockRequest(locked) {
+  for(const field of form.elements) field.disabled=locked;
+  for(const preset of document.querySelectorAll('[data-preset]')) preset.disabled=locked;
+}
 function state(status) {
   const pill = document.getElementById('status-label');
   pill.textContent = labels[status] || 'في انتظار طلبك';
@@ -61,7 +65,7 @@ function render(result) {
     }
   }
   if(result.order) { currentOrder=result.order; document.getElementById('order-id').textContent=result.order.order_id; }
-  submitButton.disabled = false;
+  lockRequest(['awaiting_review','reviewing'].includes(result.status));
 }
 const sleep = ms => new Promise(resolve => setTimeout(resolve,ms));
 async function poll(job, version) {
@@ -79,9 +83,10 @@ form.addEventListener('submit',async event => {
   const body = {brief:controls.brief.value.trim(), production_date:controls.production_date.value,
     duration_hours:Number(controls.duration_hours.value), camera_count:Number(controls.camera_count.value),
     include_audio:controls.include_audio.checked, editing_hours:Number(controls.editing_hours.value), budget_sar:Number(controls.budget_sar.value)};
+  lockRequest(true);
   state('planning');
   try { if(!csrfToken) await openSession(); const result=await request('/api/jobs','POST',body); currentJob=result.id; await poll(currentJob,version); }
-  catch(error) { if(version===generation) { state('empty'); formError.textContent=error.message; formError.hidden=false; submitButton.disabled=false; } }
+  catch(error) { if(version===generation) { state('empty'); formError.textContent=error.message; formError.hidden=false; lockRequest(false); } }
 });
 for(const button of document.querySelectorAll('[data-preset]')) button.addEventListener('click',()=>{
   controls.budget_sar.value=button.dataset.preset==='budget'?'1000':'3000';
@@ -102,10 +107,11 @@ async function decide(decision) {
 }
 document.getElementById('approve-button').addEventListener('click',()=>decide('approved'));
 document.getElementById('decline-button').addEventListener('click',()=>decide('denied'));
-document.getElementById('new-request-button').addEventListener('click',()=>{ generation++; currentJob=null; currentOrder=null; state('empty'); formError.hidden=true; controls.brief.focus(); });
+document.getElementById('new-request-button').addEventListener('click',()=>{ generation++; currentJob=null; currentOrder=null; state('empty'); formError.hidden=true; lockRequest(false); controls.brief.focus(); });
 document.getElementById('download-button').addEventListener('click',()=>{
   if(!currentOrder) return;
   const url=URL.createObjectURL(new Blob([JSON.stringify(currentOrder,null,2)],{type:'application/json'}));
-  const anchor=document.createElement('a'); anchor.href=url; anchor.download='synthetic-work-order.json'; anchor.click(); URL.revokeObjectURL(url);
+  const anchor=document.createElement('a'); anchor.href=url; anchor.download='synthetic-work-order.json'; anchor.hidden=true;
+  document.body.append(anchor); anchor.click(); anchor.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000);
 });
 openSession().catch(()=>{ formError.textContent='تعذّر بدء الجلسة. تأكد أن خدمة التجربة تعمل ثم حدّث الصفحة.'; formError.hidden=false; });

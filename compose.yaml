@@ -8,6 +8,7 @@ services:
     restart: unless-stopped
     environment:
       DEMO_DATA_DIR: /data
+      TZ: Africa/Cairo
       PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-http://localhost:8088}
       WORKFLOW_SERVICE_TOKEN: ${WORKFLOW_SERVICE_TOKEN:?Run python scripts/setup.py first}
       REVIEWER_SECRET: ${REVIEWER_SECRET:?Run python scripts/setup.py first}
