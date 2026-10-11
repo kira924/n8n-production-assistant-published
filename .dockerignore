@@ -1,0 +1,16 @@
+.git
+.env
+.env.*
+!.env.example
+.n8n
+data
+state
+secrets
+node_modules
+.venv
+__pycache__
+**/__pycache__
+.pytest_cache
+*.sqlite*
+*.log
+deploy/generated
