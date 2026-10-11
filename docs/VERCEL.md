@@ -18,7 +18,7 @@ Link the repository to a Vercel project, select the Hobby plan, and attach a Neo
 | `PUBLIC_ORIGIN` | Exact HTTPS production origin, without a trailing slash |
 | `PORT` | `8080` |
 
-Generate the four secrets with `python scripts/setup.py`, keep them private and stable across deployments, and enter the Groq key locally. Never commit `.env`, `.env.cloud`, or `.vercel/`. The project configuration uses a 300-second function limit and the Frankfurt region. Disable deployment authentication for the public demo; the editor and service routes remain hidden by the application's allowlist.
+Generate the four secrets with `python scripts/setup.py`, keep them private and stable across deployments, and enter the Groq key locally. Never commit `.env`, `.env.cloud`, or `.vercel/`. Use a 300-second function limit in the project's Functions settings and the Frankfurt region. Disable deployment authentication for the public demo; the editor and service routes remain hidden by the application's allowlist.
 
 Deploy with `vercel deploy --prod`. `Dockerfile.vercel` selects Container Runtime. On startup, a direct PostgreSQL advisory lock serializes schema creation and official n8n credential/workflow import. A private fingerprint marker skips imports when the workflow and credentials have not changed. Temporary credential files are deleted, execution payload saving is disabled, and n8n stores credentials encrypted in its own schema.
 
