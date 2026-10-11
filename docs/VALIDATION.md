@@ -17,13 +17,15 @@ The published workflow has been exercised with n8n 2.42.6 and an actual Groq key
 
 ## Cloud checks
 
-The [GitHub checks for the deployed runtime](https://github.com/kira924/n8n-production-assistant-published/actions/runs/38160320909) passed on October 11, 2026: **44 tests**, workflow policy checks, Compose startup, and the full cloud container's bootstrap/readiness/restart checks.
+The [GitHub checks for the natural-language runtime](https://github.com/kira924/n8n-production-assistant-published/actions/runs/38163607264) passed on October 11, 2026: draft validation, gateway/ERP and PostgreSQL checks, workflow policy checks, Compose startup, and the full cloud container's bootstrap/readiness/restart checks with both exported workflows.
 
 Cloud boundary tests cover route isolation, stripped workflow headers, secure cookie forwarding, payload limits, and keeping the platform request open until the persisted planning result exists. PostgreSQL integration tests use disposable schemas to check persistence across application recreation and serialization of concurrent submissions from separate instances. Set `TEST_DATABASE_URL` to run them locally; CI provides a disposable PostgreSQL service.
 
 The cloud container CI builds the complete n8n/Python image, imports and publishes the workflow with a deliberately invalid test-only provider key, checks readiness and anonymous sessions, hides internal routes, and restarts the container. That startup check does not call Groq.
 
 ## Hosted integration
+
+The natural-language interface was tested on the public HTTPS URL with actual n8n, Groq, and Neon on October 11, 2026, with the local test services stopped. An interview description yielded reviewed resource recommendations, a verified estimate, and an explicitly approved synthetic work order. A silent product advertisement yielded a different camera/time recommendation and excluded audio as requested. A brief without a date or budget returned questions with null values instead of invented facts. The displayed catalog was retrieved from the same ERP source used for interpretation and pricing.
 
 The original [live Vercel deployment](https://n8n-production-assistant-published.vercel.app) was independently tested over anonymous HTTPS with actual n8n, Groq, and Neon on October 11, 2026, before the natural-language entry was added. All four structured cases passed: approval with repeat-approval idempotency, decline without an order, budget rejection, and resource-capacity rejection. Each plan used the observed `catalog`, `availability`, `quote` sequence. A different anonymous session could not read the requests. Internal service routes and the n8n editor returned 404.
 
