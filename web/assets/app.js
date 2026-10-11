@@ -114,4 +114,20 @@ document.getElementById('download-button').addEventListener('click',()=>{
   const anchor=document.createElement('a'); anchor.href=url; anchor.download='synthetic-work-order.json'; anchor.hidden=true;
   document.body.append(anchor); anchor.click(); anchor.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000);
 });
-openSession().catch(()=>{ formError.textContent='تعذّر بدء الجلسة. تأكد أن خدمة التجربة تعمل ثم حدّث الصفحة.'; formError.hidden=false; });
+async function initialize() {
+  lockRequest(true);
+  const caption = submitButton.textContent;
+  submitButton.textContent='جاري تجهيز التجربة…';
+  for(let attempt=0;attempt<3;attempt++) {
+    try {
+      await openSession();
+      lockRequest(false); submitButton.textContent=caption; return;
+    } catch {
+      if(attempt<2) await sleep(2000);
+    }
+  }
+  submitButton.textContent=caption;
+  formError.textContent='تعذّر بدء الجلسة. انتظر قليلًا ثم حدّث الصفحة.';
+  formError.hidden=false;
+}
+initialize();

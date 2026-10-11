@@ -1,4 +1,7 @@
 .git
+.vercel
+.agents
+skills-lock.json
 .env
 .env.*
 !.env.example

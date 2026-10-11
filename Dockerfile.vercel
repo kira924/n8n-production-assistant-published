@@ -1,0 +1,27 @@
+FROM node:24-bookworm-slim AS automation
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
+    && npm install -g n8n@2.42.6 --omit=dev --no-audit --no-fund \
+    && npm cache clean --force
+
+FROM python:3.12-slim-bookworm
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PORT=8080 \
+    HOME=/tmp/desk-home N8N_USER_FOLDER=/tmp/desk-home \
+    NODE_OPTIONS=--max-old-space-size=1200
+COPY --from=automation /usr/local/bin/node /usr/local/bin/node
+COPY --from=automation /usr/local/lib/node_modules/n8n /usr/local/lib/node_modules/n8n
+RUN apt-get update && apt-get install -y --no-install-recommends libstdc++6 ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -s /usr/local/lib/node_modules/n8n/bin/n8n /usr/local/bin/n8n \
+    && useradd --uid 10001 --no-create-home appuser
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY storage.py .
+COPY api ./api
+COPY erp_demo ./erp_demo
+COPY web ./web
+COPY workflows ./workflows
+COPY deploy ./deploy
+USER appuser
+EXPOSE 8080
+CMD ["python", "deploy/cloud_runtime.py"]

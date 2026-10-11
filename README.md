@@ -1,12 +1,12 @@
 # Production Desk
 
-A browser-based production planning demo built with **n8n, Groq, FastAPI, and Docker Compose**.
+A browser-based production planning demo built with **n8n, Groq, FastAPI, and PostgreSQL**. Includes local Docker Compose and a Vercel container deployment.
 
 Built by [Khaled Abdulrahman](https://github.com/kira924).
 
 Submit a structured brief, receive a production plan and a verified SAR estimate, then explicitly approve or decline it. Approval creates one synthetic work order; declining, an unavailable resource, or an insufficient budget does not.
 
-**All resources, prices, and work orders are synthetic.** This demo does not book inventory, charge payments, or connect to a company's ERP. The web version is prepared for local Docker review; a public hosting URL has not been deployed yet.
+**All resources, prices, and work orders are synthetic.** This demo does not book inventory, charge payments, or connect to a company's ERP.
 
 ## How it works
 
@@ -28,6 +28,7 @@ flowchart LR
 - **FastAPI** verifies the canonical quote, availability, budget, and session ownership. It performs explicit human decisions and creates a work order using a short-lived token and an idempotency key.
 - **The browser** displays the request, line items, plan, and result. Visitors can review only requests in their own anonymous session. Workflow credentials and approval tokens remain on the server.
 - **nginx** exposes the visitor interface and its API routes. Internal planning tools, the callback endpoint, and the n8n editor are excluded from the visitor proxy.
+- **Cloud runtime:** one HTTP-only container runs the same n8n workflow and gateway. Neon PostgreSQL persists sessions, quotes, decisions, orders, and encrypted n8n configuration across cold starts. The public proxy keeps planning requests in flight and hides the internal services.
 
 ## Try locally
 
@@ -50,6 +51,8 @@ The interface includes three starting examples: available resources, a low budge
 | `workflows/production-plan.json` | Importable n8n planning workflow without API keys |
 | `deploy/` | Dockerfiles, nginx routing, credential/workflow bootstrap |
 | `compose.yaml` | Independent three-service stack and named volumes |
+| `Dockerfile.vercel` | Full cloud runtime built remotely, without local Docker |
+| `storage.py` | SQLite/PostgreSQL storage and transaction serialization |
 | `tests/` | Gateway isolation, validation, rejection, approval, and retry tests |
 | `docs/` | Setup and verification notes |
 

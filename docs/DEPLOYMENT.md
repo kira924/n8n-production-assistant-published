@@ -40,6 +40,8 @@ The named `demo_data` and `n8n_data` volumes persist synthetic records and confi
 
 ## Public hosting
 
+For the full Vercel/Neon deployment, see [Vercel container deployment](VERCEL.md). The remaining guidance applies to a conventional Compose host.
+
 Choose the hosting platform and domain before enabling public access. Put the web service behind an HTTPS reverse proxy, set `PUBLIC_ORIGIN` to the exact external origin, and recreate the API container to enable secure visitor cookies. If an external proxy must reach port 8088, set `PUBLIC_BIND_IP` for that deployment. Keep the API and n8n editor off the public proxy.
 
 The n8n editor's local HTTP cookie setting is intended for loopback administration. Remote administration requires an authenticated private access path; it is not part of the visitor interface.
