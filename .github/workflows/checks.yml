@@ -8,6 +8,18 @@ permissions:
 jobs:
   components:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: production_desk_ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:ci-only-password@localhost:5432/production_desk_ci
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -34,3 +46,40 @@ jobs:
           test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://localhost:8088/internal/erp/catalog)" = "404"
       - if: always()
         run: docker compose down
+  cloud-container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the full cloud runtime
+        run: docker build -f Dockerfile.vercel -t production-desk-cloud .
+      - name: Start with disposable PostgreSQL and test-only credentials
+        run: |
+          docker network create desk-ci
+          docker run -d --name desk-pg --network desk-ci -e POSTGRES_PASSWORD=ci-only-password -e POSTGRES_DB=desk postgres:17
+          for attempt in $(seq 1 30); do
+            if docker exec desk-pg pg_isready -U postgres; then break; fi
+            sleep 2
+          done
+          docker run -d --name desk-app --network desk-ci -p 8080:8080 \
+            -e DATABASE_URL=postgresql://postgres:ci-only-password@desk-pg:5432/desk \
+            -e DATABASE_URL_UNPOOLED=postgresql://postgres:ci-only-password@desk-pg:5432/desk \
+            -e GROQ_API_KEY=not-a-real-provider-key \
+            -e WORKFLOW_SERVICE_TOKEN=ci-workflow-token-0000000000000000000000 \
+            -e REVIEWER_SECRET=ci-reviewer-secret-0000000000000000000000 \
+            -e SESSION_SECRET=ci-session-secret-00000000000000000000000 \
+            -e N8N_ENCRYPTION_KEY=ci-encryption-key-00000000000000000000000 \
+            -e PUBLIC_ORIGIN=http://localhost:8080 production-desk-cloud
+          for attempt in $(seq 1 150); do
+            if curl --fail --silent http://localhost:8080/health; then break; fi
+            sleep 2
+          done
+          curl --fail --silent http://localhost:8080/health
+          curl --fail --silent http://localhost:8080/api/session
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://localhost:8080/internal/erp/catalog)" = "404"
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://localhost:8080/rest/credentials)" = "404"
+          docker restart desk-app
+          curl --fail --retry 30 --retry-all-errors --retry-delay 2 --silent http://localhost:8080/api/session
+      - if: failure()
+        run: docker logs desk-app
+      - if: always()
+        run: docker rm -f desk-app desk-pg || true

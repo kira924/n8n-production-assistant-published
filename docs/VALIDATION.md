@@ -9,10 +9,14 @@
 
 Gateway tests use a controlled dispatcher and genuine synthetic ERP responses. They do not call Groq or prove a complete container deployment.
 
-## Runtime status
+## Real local integration
 
-The Docker configuration is prepared for operator review. Docker Engine/Desktop was unavailable in the local validation environment, so a complete `docker compose up` run has not been verified there. The Docker build, bootstrap, authenticated webhook, and provider quotas must be checked with the operator's configured Groq key before public hosting.
+The published workflow has been exercised with n8n 2.42.6 and an actual Groq key in an isolated local runtime. The available request returned the catalog total of 2240 SAR after `catalog`, `availability`, and `quote`; explicit approval created one order and repeating approval returned that same order. Decline created no order. Separate runs rejected a 1000 SAR budget and a three-camera request. Rapid consecutive provider calls also produced a planning error, so these cases do not establish a general success rate or unrestricted quota.
 
-The web-facing workflow is an adaptation of a previously exercised local planning flow. Its new webhook, internal route authentication, and callback integration require their own end-to-end run; component checks are not presented as that run.
+## Cloud checks
 
-The exported Compose configuration passed the official Compose CLI's `config --quiet` validation. Browser automation was unavailable in the local validation environment; responsive layout and browser interactions still require a visual review. The GitHub workflow also checks the component tests, container build/startup of the web/API services, and private-route proxy boundary.
+Cloud boundary tests cover route isolation, stripped workflow headers, secure cookie forwarding, payload limits, and keeping the platform request open until the persisted planning result exists. PostgreSQL integration tests use disposable schemas to check persistence across application recreation and serialization of concurrent submissions from separate instances. Set `TEST_DATABASE_URL` to run them locally; CI provides a disposable PostgreSQL service.
+
+The cloud container CI builds the complete n8n/Python image, imports and publishes the workflow with a deliberately invalid test-only provider key, checks readiness and anonymous sessions, hides internal routes, and restarts the container. That startup check does not call Groq. A hosted deployment still requires its own real-provider and anonymous-access checks.
+
+The exported Compose configuration passed the official Compose CLI's `config --quiet` validation. CI also checks the web/API Compose build and route boundary. Docker Desktop was not installed locally. Browser automation was unavailable; a visual review of responsive layout remains a separate manual check.
