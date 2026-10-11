@@ -7,6 +7,7 @@ RUN pip install --no-cache-dir -r requirements.txt \
     && mkdir /data && chown appuser:appuser /data
 COPY api ./api
 COPY erp_demo ./erp_demo
+COPY storage.py .
 USER appuser
 EXPOSE 8000
 CMD ["uvicorn", "api.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--no-access-log"]

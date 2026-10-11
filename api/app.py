@@ -23,6 +23,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import Field
 
 from erp_demo.app import QuoteInput, StrictBody, create_app as create_erp
+from storage import connect as database_connect
 
 
 @dataclass(frozen=True)
@@ -39,6 +40,8 @@ class Settings:
     daily_limit: int = 40
     job_ttl: int = 1800
     planning_timeout: int = 180
+    database_url: str | None = None
+    database_prefix: str = 'production_desk'
 
     @classmethod
     def from_env(cls):
@@ -48,7 +51,9 @@ class Settings:
         origin = os.environ.get('PUBLIC_ORIGIN', 'http://localhost:8088').rstrip('/')
         return cls(Path(os.environ.get('DEMO_DATA_DIR', '/data')), origin, *values,
                    webhook_url=os.environ.get('N8N_WEBHOOK_URL', 'http://n8n:5678/webhook/production-plan'),
-                   secure_cookies=origin.startswith('https://'))
+                   secure_cookies=origin.startswith('https://'),
+                   database_url=os.environ.get('DATABASE_URL'),
+                   database_prefix=os.environ.get('DATABASE_PREFIX', 'production_desk'))
 
 
 class Submission(QuoteInput):
@@ -87,18 +92,14 @@ def create_app(settings: Settings | None = None, dispatcher=None, clock=time.tim
     settings = settings or Settings.from_env()
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     database = settings.data_dir / 'sessions.sqlite3'
-    erp = create_erp(settings.data_dir / 'erp.sqlite3', settings.reviewer_key)
+    erp = create_erp(settings.data_dir / 'erp.sqlite3', settings.reviewer_key,
+                     database_url=settings.database_url, database_prefix=settings.database_prefix)
     app = FastAPI(title='Production Desk', version='2.0.0', docs_url=None, redoc_url=None, openapi_url=None)
 
     @contextmanager
     def connect():
-        conn = sqlite3.connect(database, timeout=10, isolation_level=None)
-        conn.row_factory = sqlite3.Row
-        try:
-            with conn:
-                yield conn
-        finally:
-            conn.close()
+        with database_connect(database, 'gateway', settings.database_url, settings.database_prefix) as conn:
+            yield conn
 
     with connect() as conn:
         conn.execute('PRAGMA journal_mode=WAL')

@@ -21,6 +21,7 @@ from typing import Literal
 
 from fastapi import FastAPI, Header, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from storage import connect as database_connect, database_errors
 
 
 LOGGER = logging.getLogger("erp_demo.audit")
@@ -119,7 +120,8 @@ def availability(production_date: str, duration_hours: int, camera_count: int, i
     }
 
 
-def create_app(db_path: str | Path | None = None, reviewer_key: str | None = None) -> FastAPI:
+def create_app(db_path: str | Path | None = None, reviewer_key: str | None = None,
+               *, database_url: str | None = None, database_prefix='production_desk') -> FastAPI:
     database_path = Path(db_path or os.environ.get("ERP_DEMO_DB") or Path(__file__).parent / "data" / "demo.sqlite3")
     database_path.parent.mkdir(parents=True, exist_ok=True)
     configured_key = reviewer_key if reviewer_key is not None else os.environ.get("DEMO_REVIEWER_KEY", "")
@@ -127,13 +129,8 @@ def create_app(db_path: str | Path | None = None, reviewer_key: str | None = Non
 
     @contextmanager
     def connect():
-        connection = sqlite3.connect(database_path, timeout=10, isolation_level=None)
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA foreign_keys = ON")
-        try:
+        with database_connect(database_path, 'erp', database_url, database_prefix) as connection:
             yield connection
-        finally:
-            connection.close()
 
     with connect() as connection:
         connection.execute("PRAGMA journal_mode = WAL")
@@ -198,7 +195,7 @@ def create_app(db_path: str | Path | None = None, reviewer_key: str | None = Non
                         "INSERT INTO request_events (correlation_id, request_id, path, method, status_code, duration_ms, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
                         tuple(event[key] for key in ("correlation_id", "request_id", "path", "method", "status_code", "duration_ms", "created_at")),
                     )
-            except sqlite3.Error:
+            except database_errors():
                 LOGGER.exception("Could not persist request metrics")
 
     @application.get("/health")
@@ -355,10 +352,10 @@ def create_app(db_path: str | Path | None = None, reviewer_key: str | None = Non
     def metrics():
         with connect() as connection:
             summary = connection.execute(
-                "SELECT COUNT(*) request_count, COALESCE(SUM(status_code >= 400), 0) failed_request_count, COALESCE(AVG(duration_ms), 0) mean_duration_ms FROM request_events WHERE path NOT IN ('/health', '/metrics')"
+                "SELECT COUNT(*) request_count, COALESCE(SUM(CASE WHEN status_code >= 400 THEN 1 ELSE 0 END), 0) failed_request_count, COALESCE(AVG(duration_ms), 0) mean_duration_ms FROM request_events WHERE path NOT IN ('/health', '/metrics')"
             ).fetchone()
             endpoints = connection.execute(
-                "SELECT path, COUNT(*) request_count, ROUND(AVG(duration_ms), 3) mean_duration_ms FROM request_events WHERE path NOT IN ('/health', '/metrics') GROUP BY path ORDER BY path"
+                "SELECT path, COUNT(*) request_count, ROUND(CAST(AVG(duration_ms) AS NUMERIC), 3) mean_duration_ms FROM request_events WHERE path NOT IN ('/health', '/metrics') GROUP BY path ORDER BY path"
             ).fetchall()
             quote_count = connection.execute("SELECT COUNT(*) FROM quotes").fetchone()[0]
             review_counts = connection.execute("SELECT decision, COUNT(*) count FROM reviews GROUP BY decision").fetchall()
