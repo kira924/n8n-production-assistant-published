@@ -24,7 +24,7 @@ docker compose restart n8n
 docker compose ps
 ```
 
-The bootstrap imports the Groq credential and a distinct header credential for the planning service, imports `workflows/production-plan.json`, and publishes it. n8n must restart to register a workflow published through its CLI. Credentials are stored encrypted in the private n8n volume. The bootstrap's temporary credential file is removed in a `finally` block and is never part of the source.
+The bootstrap imports the Groq credential and a distinct header credential, then imports and publishes both `workflows/interpret-brief.json` and `workflows/production-plan.json`. n8n must restart to register workflows published through its CLI. Credentials are stored encrypted in the private n8n volume. The bootstrap's temporary credential file is removed in a `finally` block and is never part of the source.
 
 Open **http://localhost:8088** to use the visitor interface. Startup can take several minutes on the first run. Wait for the n8n readiness check before submitting requests.
 
@@ -48,7 +48,7 @@ The n8n editor's local HTTP cookie setting is intended for loopback administrati
 
 The nginx gateway overwrites `X-Real-IP` with its direct client's address. A hosting platform with another proxy in front must configure trusted client-address forwarding; otherwise visitors behind that proxy share the same IP quota. Do not trust arbitrary visitor-supplied forwarding headers.
 
-Request limits are five submissions per session per hour, ten per observed IP per hour, forty globally per rolling day, and one active planning execution at a time. Provider quotas may be lower. The application rejects excess requests and does not automatically switch to simulated model results.
+Request limits are five submissions per session per hour, ten per observed IP per hour, forty globally per rolling day, and one active interpretation or planning execution at a time. A reviewed draft and its subsequent quote count as one submission. Reinterpreting a changed brief consumes a new submission. Provider quotas may be lower. The application rejects excess requests and does not automatically switch to simulated model results.
 
 ## Data and troubleshooting
 

@@ -11,6 +11,8 @@ Gateway tests use a controlled dispatcher and genuine synthetic ERP responses. T
 
 ## Real local integration
 
+The natural-language entry was exercised with actual n8n and Groq using an interview brief, a silent product advertisement, and a brief missing date and budget. The model extracted explicit facts with excerpts, recommended resources without requiring the visitor to enter them first, changed recommendations for the product advertisement, and asked for missing date/budget instead of inventing them. The reviewed interview draft continued immediately to a verified estimate and explicit order approval. Component checks also reject invented dates/budgets, fabricated excerpts, unsupported suggestions, price fields in model output, and foreign/reused draft confirmation.
+
 The published workflow has been exercised with n8n 2.42.6 and an actual Groq key in an isolated local runtime. The available request returned the catalog total of 2240 SAR after `catalog`, `availability`, and `quote`; explicit approval created one order and repeating approval returned that same order. Decline created no order. Separate runs rejected a 1000 SAR budget and a three-camera request. Rapid consecutive provider calls also produced a planning error, so these cases do not establish a general success rate or unrestricted quota.
 
 ## Cloud checks
@@ -23,7 +25,7 @@ The cloud container CI builds the complete n8n/Python image, imports and publish
 
 ## Hosted integration
 
-The [live Vercel deployment](https://n8n-production-assistant-published.vercel.app) was independently tested over anonymous HTTPS with actual n8n, Groq, and Neon on October 11, 2026. All four cases passed: approval with repeat-approval idempotency, decline without an order, budget rejection, and resource-capacity rejection. Each plan used the observed `catalog`, `availability`, `quote` sequence. A different anonymous session could not read the requests. Internal service routes and the n8n editor returned 404. Persistent Neon records contained four jobs, two reviews, one work order, two encrypted n8n credentials, and one published workflow.
+The original [live Vercel deployment](https://n8n-production-assistant-published.vercel.app) was independently tested over anonymous HTTPS with actual n8n, Groq, and Neon on October 11, 2026, before the natural-language entry was added. All four structured cases passed: approval with repeat-approval idempotency, decline without an order, budget rejection, and resource-capacity rejection. Each plan used the observed `catalog`, `availability`, `quote` sequence. A different anonymous session could not read the requests. Internal service routes and the n8n editor returned 404.
 
 These checks establish the listed behaviors with synthetic inputs. Free-tier quotas, cold starts, and provider availability still apply.
 
