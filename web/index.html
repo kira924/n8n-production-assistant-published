@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="تجربة تفاعلية لتجهيز طلب إنتاج: خطة، عرض سعر متحقق منه، وقرار بشري قبل أمر العمل.">
+  <title>Production Desk — من الفكرة إلى أمر العمل</title>
+  <link rel="stylesheet" href="/assets/style.css">
+  <script src="/assets/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a href="/" class="brand"><span class="brand-mark" aria-hidden="true">P<span>·</span></span><span dir="ltr">Production Desk</span></a>
+    <span class="top-meta"><span class="live-dot"></span> تجربة تفاعلية <span class="divider">/</span> <span dir="ltr">n8n + Groq</span></span>
+    <a class="source-link" href="https://github.com/kira924/n8n-production-assistant-published" target="_blank" rel="noopener noreferrer">المصدر <span aria-hidden="true">↗</span></a>
+  </header>
+  <main>
+    <section class="intro">
+      <div class="intro-copy">
+        <p class="eyebrow"><span></span> استوديو الإنتاج التجريبي</p>
+        <h1>فكرة واضحة.<br>عرض محسوب.<br><em>والقرار ليك.</em></h1>
+        <p class="intro-text">اكتب طلب إنتاج، وشوف الوكيل يجهّز الخطة وعرض السعر. راجع النتيجة ووافق أو ارفض قبل إنشاء أمر العمل.</p>
+      </div>
+      <div class="flow-card">
+        <p class="small-label">مسار الطلب</p>
+        <ol class="flow-preview">
+          <li><span>01</span><div><strong>طلب إنتاج</strong><p>الفكرة والموارد والميزانية</p></div></li>
+          <li><span>02</span><div><strong>خطة وعرض سعر</strong><p>أدوات فعلية وحسابات متحقّق منها</p></div></li>
+          <li><span>03</span><div><strong>مراجعتك أولًا</strong><p>إنشاء أمر العمل بعد الموافقة</p></div></li>
+        </ol>
+        <p class="demo-notice">كل الأسعار والموارد وأوامر العمل في هذه التجربة مصطنعة. استخدم محتوى تجريبيًا بدون بيانات شخصية.</p>
+      </div>
+    </section>
+
+    <section class="workspace" aria-label="تجربة طلب الإنتاج">
+      <div class="form-panel">
+        <div class="panel-heading"><div><p class="small-label">01 / الطلب</p><h2>جهّز طلبك</h2></div><span class="tag">SAR</span></div>
+        <p class="section-help">ابدأ بأحد الأمثلة، أو عدّل التفاصيل لتناسب فكرتك.</p>
+        <div class="presets" role="group" aria-label="أمثلة جاهزة">
+          <button type="button" data-preset="valid" class="selected">طلب متاح</button>
+          <button type="button" data-preset="budget">ميزانية أقل</button>
+          <button type="button" data-preset="capacity">موارد غير متاحة</button>
+        </div>
+        <form id="production-form">
+          <label class="field full"><span>فكرة الإنتاج</span><textarea id="brief" name="brief" minlength="10" maxlength="4000" required rows="3">تصوير حوار قصير داخل الاستوديو بكاميرتين، مع صوت واضح ومونتاج نهائي للنشر.</textarea></label>
+          <div class="fields-grid">
+            <label class="field"><span>تاريخ الإنتاج</span><input id="production-date" name="production_date" type="date" required></label>
+            <label class="field"><span>ساعات الاستوديو</span><input name="duration_hours" type="number" min="1" max="8" value="2" required></label>
+            <label class="field"><span>عدد الكاميرات</span><select name="camera_count"><option value="1">كاميرا واحدة</option><option value="2" selected>كاميرتان</option><option value="3">3 كاميرات</option></select></label>
+            <label class="field"><span>ساعات المونتاج</span><input name="editing_hours" type="number" min="0" max="8" value="2" required></label>
+            <label class="field full"><span>الميزانية <small>(SAR)</small></span><input name="budget_sar" type="number" min="1" max="1000000" value="3000" required></label>
+          </div>
+          <label class="check-field"><input name="include_audio" type="checkbox" checked><span>إضافة تجهيز الصوت</span><span class="audio-label">صوت واضح</span></label>
+          <button id="submit-button" class="primary-button" type="submit">تجهيز عرض السعر <span aria-hidden="true">←</span></button>
+          <p class="form-note">إرسال الطلب يجهّز عرضًا فقط. الموافقة خطوة منفصلة.</p>
+          <p id="form-error" class="error-banner" role="alert" hidden></p>
+        </form>
+      </div>
+
+      <div class="result-panel">
+        <div class="panel-heading"><div><p class="small-label">02 / النتيجة</p><h2>من الطلب إلى القرار</h2></div><span id="status-label" class="status-pill">في انتظار طلبك</span></div>
+        <div id="empty-state" class="empty-state">
+          <div class="estimate-illustration" aria-hidden="true"><span class="paper-corner"></span><span class="paper-line long"></span><span class="paper-line"></span><span class="paper-line medium"></span><div class="paper-total">SAR <span>—</span></div><div class="check-stamp">✓</div></div>
+          <h3>كل التفاصيل في مكان واحد</h3>
+          <p>بعد إرسال الطلب، هتشوف خطة الإنتاج وبنود السعر ونتيجة التوافر، ثم تختار الخطوة التالية.</p>
+          <div class="empty-tags"><span>عرض متحقّق منه</span><span>موافقة صريحة</span><span>أمر واحد لكل طلب</span></div>
+        </div>
+        <div id="planning-state" class="planning-state" role="status" hidden><span class="spinner"></span><h3>جاري تجهيز العرض…</h3><p>الوكيل بيستدعي الكتالوج والتوافر والتسعير. النتيجة هتظهر بعد التحقق.</p></div>
+        <div id="result-content" hidden>
+          <p id="result-message" class="result-message" role="status"></p>
+          <div id="quote-section" hidden>
+            <div class="quote-total"><span>إجمالي العرض التجريبي</span><strong id="quote-total"></strong><small>SAR</small></div>
+            <table class="price-table"><caption class="sr-only">بنود عرض السعر</caption><thead><tr><th>البند</th><th>الكمية</th><th>الإجمالي</th></tr></thead><tbody id="line-items"></tbody></table>
+            <details class="plan-details" open><summary>خطة الإنتاج</summary><p id="production-plan"></p></details>
+            <div id="review-actions" class="review-actions" hidden><button id="approve-button" class="primary-button" type="button">موافقة وإنشاء أمر العمل</button><button id="decline-button" class="secondary-button" type="button">رفض العرض</button></div>
+          </div>
+          <div id="order-section" class="order-card" hidden><span class="order-check" aria-hidden="true">✓</span><div><p class="small-label">أمر العمل التجريبي</p><strong id="order-id" dir="ltr"></strong><p>تم تسجيل الموافقة وإنشاء الأمر مرة واحدة.</p></div><button id="download-button" class="text-button" type="button">تحميل JSON ↓</button></div>
+          <button id="new-request-button" class="text-button new-request" type="button">ابدأ طلبًا جديدًا ←</button>
+        </div>
+        <div class="result-footer"><span class="lock-symbol" aria-hidden="true">◇</span> قرارك مرتبط بالطلب الموجود في جلستك.</div>
+      </div>
+    </section>
+  </main>
+  <footer class="page-footer"><span dir="ltr">Production Desk / Khaled Abdulrahman</span><span>تجربة ببيانات مصطنعة · بدون حجز أو دفع فعلي</span></footer>
+</body>
+</html>
