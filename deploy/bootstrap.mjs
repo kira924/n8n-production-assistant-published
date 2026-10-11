@@ -21,6 +21,8 @@ try {
     ['import:credentials','--input='+file],
     ['import:workflow','--input=/files/workflows/production-plan.json'],
     ['publish:workflow','--id=productionDeskPublicPlan'],
+    ['import:workflow','--input=/files/workflows/interpret-brief.json'],
+    ['publish:workflow','--id=productionDeskInterpretBrief'],
   ]) execFileSync('n8n',args,{stdio:'pipe',env:process.env});
   console.log('Planning workflow and encrypted credentials configured. Restart n8n to register its production webhook.');
 } catch {

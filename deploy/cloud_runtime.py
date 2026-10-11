@@ -67,7 +67,8 @@ def configure():
     Path(env.get('N8N_USER_FOLDER', '/tmp/desk-home')).mkdir(parents=True, exist_ok=True)
     source = (ROOT / 'workflows/production-plan.json').read_text(encoding='utf-8')
     source = source.replace('http://api:8000', API)
-    fingerprint = hashlib.sha256((source + '\0' + env['GROQ_API_KEY'] + '\0' +
+    interpret_source = (ROOT / 'workflows/interpret-brief.json').read_text(encoding='utf-8').replace('http://api:8000', API)
+    fingerprint = hashlib.sha256((source + interpret_source + '\0' + env['GROQ_API_KEY'] + '\0' +
                                   env['WORKFLOW_SERVICE_TOKEN']).encode()).hexdigest()
     # A session-level lock uses the direct endpoint, never a transaction pooler.
     with psycopg.connect(direct_url, autocommit=True, connect_timeout=30) as db:
@@ -90,10 +91,14 @@ def configure():
                     credentials.chmod(0o600)
                     workflow = Path(folder) / 'workflow.json'
                     workflow.write_text(source, encoding='utf-8')
+                    interpret_workflow = Path(folder) / 'interpret.json'
+                    interpret_workflow.write_text(interpret_source, encoding='utf-8')
                     for args in (
                         ['import:credentials', '--input=' + str(credentials)],
                         ['import:workflow', '--input=' + str(workflow)],
                         ['publish:workflow', '--id=productionDeskPublicPlan'],
+                        ['import:workflow', '--input=' + str(interpret_workflow)],
+                        ['publish:workflow', '--id=productionDeskInterpretBrief'],
                     ):
                         result = subprocess.run(['n8n', *args], env=env, cwd=ROOT,
                                                 capture_output=True, timeout=240)
@@ -105,7 +110,8 @@ def configure():
             db.execute('SELECT pg_advisory_unlock(%s)', (lock,))
     # Keep Groq out of the Python service environment; only n8n needs it.
     api_env = {key: value for key, value in env.items() if key not in ('GROQ_API_KEY', 'DB_POSTGRESDB_PASSWORD')}
-    api_env.update(DEMO_DATA_DIR='/tmp/desk-data', N8N_WEBHOOK_URL=N8N + '/webhook/production-plan')
+    api_env.update(DEMO_DATA_DIR='/tmp/desk-data', N8N_WEBHOOK_URL=N8N + '/webhook/production-plan',
+                   N8N_INTERPRET_WEBHOOK_URL=N8N + '/webhook/interpret-brief')
     for args, child_env in (
         ([sys.executable, '-m', 'uvicorn', 'api.app:create_app', '--factory', '--host', '127.0.0.1', '--port', '8000', '--no-access-log'], api_env),
         (['n8n', 'start'], env),
@@ -170,7 +176,7 @@ def create_app(transport=None, ready=READY):
     @app.api_route('/api/{path:path}', methods=['GET', 'POST'])
     async def proxy(path: str, request: Request):
         # Only known visitor routes are forwarded; no URL normalization can open /internal.
-        if not re.fullmatch(r'session|jobs|jobs/job_[a-f0-9]{32}(?:/decision)?', path):
+        if not re.fullmatch(r'session|catalog|interpret|jobs|jobs/job_[a-f0-9]{32}(?:/decision)?', path):
             return JSONResponse({'detail': 'Not found'}, status_code=404)
         size = request.headers.get('content-length', '')
         if size and (not size.isdecimal() or int(size) > 20_000):
@@ -185,7 +191,7 @@ def create_app(transport=None, ready=READY):
             forwarded = {name: request.headers[name] for name in ('cookie', 'origin', 'x-csrf-token', 'content-type') if name in request.headers}
             # Vercel overwrites this header with the direct client's public address.
             forwarded['x-real-ip'] = request.headers.get('x-forwarded-for', 'local').split(',')[0].strip()
-            async with httpx.AsyncClient(base_url=API, transport=transport, timeout=30, trust_env=False) as client:
+            async with httpx.AsyncClient(base_url=API, transport=transport, timeout=135 if path == 'interpret' else 30, trust_env=False) as client:
                 response = await client.request(request.method, '/api/' + path, headers=forwarded, content=bytes(body))
                 if path == 'jobs' and request.method == 'POST' and response.status_code == 202:
                     job = response.json()['id']

@@ -24,6 +24,7 @@ from pydantic import Field
 
 from erp_demo.app import QuoteInput, StrictBody, create_app as create_erp
 from storage import connect as database_connect
+from api.interpretation import Interpretation, FIELD_LABELS
 
 
 @dataclass(frozen=True)
@@ -42,6 +43,7 @@ class Settings:
     planning_timeout: int = 180
     database_url: str | None = None
     database_prefix: str = 'production_desk'
+    interpret_webhook_url: str = 'http://n8n:5678/webhook/interpret-brief'
 
     @classmethod
     def from_env(cls):
@@ -53,7 +55,8 @@ class Settings:
                    webhook_url=os.environ.get('N8N_WEBHOOK_URL', 'http://n8n:5678/webhook/production-plan'),
                    secure_cookies=origin.startswith('https://'),
                    database_url=os.environ.get('DATABASE_URL'),
-                   database_prefix=os.environ.get('DATABASE_PREFIX', 'production_desk'))
+                   database_prefix=os.environ.get('DATABASE_PREFIX', 'production_desk'),
+                   interpret_webhook_url=os.environ.get('N8N_INTERPRET_WEBHOOK_URL', 'http://n8n:5678/webhook/interpret-brief'))
 
 
 class Submission(QuoteInput):
@@ -70,6 +73,11 @@ class BrowserSubmission(StrictBody):
     include_audio: bool = Field(strict=True)
     editing_hours: int = Field(strict=True, ge=0, le=8)
     budget_sar: int = Field(strict=True, ge=1, le=1_000_000)
+    interpretation_id: str | None = Field(default=None, pattern=r'^draft_[a-f0-9]{32}$')
+
+
+class BriefSubmission(StrictBody):
+    brief: str = Field(min_length=10, max_length=4000)
 
 
 class PlanningResult(StrictBody):
@@ -88,7 +96,7 @@ def digest(value: str):
     return hashlib.sha256(value.encode()).hexdigest()
 
 
-def create_app(settings: Settings | None = None, dispatcher=None, clock=time.time) -> FastAPI:
+def create_app(settings: Settings | None = None, dispatcher=None, clock=time.time, interpreter=None) -> FastAPI:
     settings = settings or Settings.from_env()
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     database = settings.data_dir / 'sessions.sqlite3'
@@ -111,6 +119,12 @@ def create_app(settings: Settings | None = None, dispatcher=None, clock=time.tim
                 decision TEXT, created REAL NOT NULL, updated REAL NOT NULL
             );
             CREATE INDEX IF NOT EXISTS jobs_owner_created ON jobs(owner, created);
+            CREATE TABLE IF NOT EXISTS interpretations (
+                id TEXT PRIMARY KEY, owner TEXT NOT NULL, ip_hash TEXT NOT NULL,
+                brief TEXT NOT NULL, status TEXT NOT NULL, result TEXT,
+                created REAL NOT NULL, updated REAL NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS interpretations_owner_created ON interpretations(owner, created);
         ''')
 
     async def erp_call(method, path, **kwargs):
@@ -154,6 +168,26 @@ def create_app(settings: Settings | None = None, dispatcher=None, clock=time.tim
         with connect() as conn:
             conn.execute("UPDATE jobs SET status='error',result=?,updated=? WHERE id=? AND status='planning'",
                          (json.dumps(error_result(message), ensure_ascii=False), clock(), job_id))
+
+    def reserve(conn, hashed, ip_hash, now, confirming=False):
+        # A confirmed draft and its quote count as one visitor submission.
+        conn.execute('DELETE FROM jobs WHERE created<?', (now - 86400,))
+        conn.execute('DELETE FROM interpretations WHERE created<?', (now - 86400,))
+        conn.execute("UPDATE jobs SET status='error',result=?,updated=? WHERE status='planning' AND created<?",
+                     (json.dumps(error_result('انتهت مهلة التخطيط. أنشئ طلبًا جديدًا.'), ensure_ascii=False), now, now - settings.planning_timeout))
+        conn.execute("UPDATE interpretations SET status='error',updated=? WHERE status='interpreting' AND created<?", (now, now - settings.planning_timeout))
+        combined = "(SELECT owner,ip_hash,created FROM jobs UNION ALL SELECT owner,ip_hash,created FROM interpretations WHERE status!='confirmed')"
+        session_count = conn.execute('SELECT COUNT(*) FROM ' + combined + ' AS requests WHERE owner=? AND created>?', (hashed, now - 3600)).fetchone()[0]
+        ip_count = conn.execute('SELECT COUNT(*) FROM ' + combined + ' AS requests WHERE ip_hash=? AND created>?', (ip_hash, now - 3600)).fetchone()[0]
+        daily_count = conn.execute('SELECT COUNT(*) FROM ' + combined + ' AS requests WHERE created>?', (now - 86400,)).fetchone()[0]
+        if not confirming and (session_count >= settings.session_limit or ip_count >= settings.ip_limit or daily_count >= settings.daily_limit):
+            raise HTTPException(429, 'وصلت التجربة لحد الطلبات المتاح. جرّب لاحقًا.')
+        if conn.execute("SELECT 1 FROM jobs WHERE status='planning'").fetchone() or conn.execute("SELECT 1 FROM interpretations WHERE status='interpreting'").fetchone():
+            raise HTTPException(429, 'يتم تجهيز طلب آخر الآن. انتظر قليلًا ثم حاول مجددًا.')
+
+    def address_hash(request):
+        address = request.headers.get('x-real-ip') or (request.client.host if request.client else 'local')
+        return hmac.new(settings.session_key.encode(), address.encode(), hashlib.sha256).hexdigest()
 
     async def dispatch(job_id, payload):
         try:
@@ -206,32 +240,69 @@ def create_app(settings: Settings | None = None, dispatcher=None, clock=time.tim
             response.set_cookie('production_session', token, httponly=True, samesite='strict', secure=settings.secure_cookies, max_age=3600, path='/')
         return {'csrf_token': csrf(token), 'today': date.today().isoformat(), 'synthetic': True}
 
+    @app.get('/api/catalog')
+    async def public_catalog(request: Request):
+        owner(request)
+        response = await erp_call('GET', '/catalog')
+        return response.json()
+
+    @app.post('/api/interpret')
+    async def interpret(body: BriefSubmission, request: Request):
+        hashed = owner(request, mutate=True)
+        draft_id, now = 'draft_' + uuid.uuid4().hex, clock()
+        with connect() as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            reserve(conn, hashed, address_hash(request), now)
+            conn.execute('INSERT INTO interpretations VALUES (?,?,?,?,?,?,?,?)',
+                         (draft_id, hashed, address_hash(request), body.brief, 'interpreting', None, now, now))
+            conn.commit()
+        try:
+            catalog = (await erp_call('GET', '/catalog')).json()
+            context = {'brief': body.brief, 'today': date.today().isoformat(), 'catalog': catalog}
+            if interpreter:
+                raw = await interpreter(context)
+            else:
+                async with httpx.AsyncClient(timeout=120, trust_env=False) as client:
+                    response = await client.post(settings.interpret_webhook_url, json=context,
+                                                 headers={'X-Workflow-Key': settings.workflow_key})
+                    response.raise_for_status()
+                    raw = response.json()
+            draft = Interpretation.model_validate(raw, context=context)
+            result = {'id': draft_id, **draft.model_dump(), 'synthetic': True}
+            with connect() as conn:
+                conn.execute("UPDATE interpretations SET status='ready',result=?,updated=? WHERE id=? AND status='interpreting'",
+                             (json.dumps(result, ensure_ascii=False), clock(), draft_id))
+            return result
+        except Exception:
+            with connect() as conn:
+                conn.execute("UPDATE interpretations SET status='error',updated=? WHERE id=?", (clock(), draft_id))
+            raise HTTPException(503, 'تعذّر فهم الطلب حاليًا. انتظر قليلًا ثم حاول مرة أخرى؛ لم يُنشأ عرض أو أمر عمل.') from None
+
     @app.post('/api/jobs', status_code=202)
     async def submit(body: BrowserSubmission, request: Request, tasks: BackgroundTasks):
         hashed = owner(request, mutate=True)
         job_id = 'job_' + uuid.uuid4().hex
         try:
-            payload = Submission(request_id=job_id, **body.model_dump()).model_dump()
+            payload = Submission(request_id=job_id, **body.model_dump(exclude={'interpretation_id'})).model_dump()
         except ValueError:
             raise HTTPException(422, 'اختر تاريخًا صالحًا خلال السنة القادمة.') from None
-        address = request.headers.get('x-real-ip') or (request.client.host if request.client else 'local')
-        ip_hash = hmac.new(settings.session_key.encode(), address.encode(), hashlib.sha256).hexdigest()
+        ip_hash = address_hash(request)
         now = clock()
         with connect() as conn:
             conn.execute('BEGIN IMMEDIATE')
-            conn.execute('DELETE FROM jobs WHERE created<?', (now - 86400,))
-            # Timed-out executions cannot indefinitely hold the single planning slot.
-            conn.execute("UPDATE jobs SET status='error',result=?,updated=? WHERE status='planning' AND created<?",
-                         (json.dumps(error_result('انتهت مهلة التخطيط. أنشئ طلبًا جديدًا.'), ensure_ascii=False), now, now - settings.planning_timeout))
-            session_count = conn.execute('SELECT COUNT(*) FROM jobs WHERE owner=? AND created>?', (hashed, now - 3600)).fetchone()[0]
-            ip_count = conn.execute('SELECT COUNT(*) FROM jobs WHERE ip_hash=? AND created>?', (ip_hash, now - 3600)).fetchone()[0]
-            daily_count = conn.execute('SELECT COUNT(*) FROM jobs WHERE created>?', (now - 86400,)).fetchone()[0]
-            if session_count >= settings.session_limit or ip_count >= settings.ip_limit or daily_count >= settings.daily_limit:
-                raise HTTPException(429, 'وصلت التجربة لحد الطلبات المتاح. جرّب لاحقًا.')
-            if conn.execute("SELECT 1 FROM jobs WHERE status='planning'").fetchone():
-                raise HTTPException(429, 'يتم تجهيز طلب آخر الآن. انتظر قليلًا ثم حاول مجددًا.')
+            if body.interpretation_id:
+                draft_row = conn.execute('SELECT * FROM interpretations WHERE id=? AND owner=?', (body.interpretation_id, hashed)).fetchone()
+                if not draft_row:
+                    raise HTTPException(404, 'الاقتراح غير موجود في هذه الجلسة.')
+                if draft_row['status'] != 'ready' or draft_row['created'] + settings.job_ttl <= now:
+                    raise HTTPException(409, 'الاقتراح منتهي أو استُخدم بالفعل. حلّل طلبًا جديدًا.')
+                if draft_row['brief'] != body.brief:
+                    raise HTTPException(409, 'تغيّر وصف الطلب. أعد تحليله أولًا.')
+            reserve(conn, hashed, ip_hash, now, confirming=bool(body.interpretation_id))
             conn.execute('INSERT INTO jobs VALUES (?,?,?,?,?,?,?,?,?)',
                          (job_id, hashed, ip_hash, json.dumps(payload, ensure_ascii=False), 'planning', None, None, now, now))
+            if body.interpretation_id:
+                conn.execute("UPDATE interpretations SET status='confirmed',updated=? WHERE id=?", (now, body.interpretation_id))
             conn.commit()
         tasks.add_task(dispatch, job_id, payload)
         return {'id': job_id, 'status': 'planning', 'synthetic': True}
@@ -280,7 +351,9 @@ def create_app(settings: Settings | None = None, dispatcher=None, clock=time.tim
                     status = 'awaiting_review'
                     message = 'راجع العرض، ثم اختر الموافقة أو الرفض.'
                     if not quote['available']:
-                        status, message = 'rejected', 'الموارد غير متاحة للتاريخ أو العدد المطلوب.'
+                        reason = ('الاستوديو في صيانة يوم 15 من كل شهر في هذه التجربة.' if date.fromisoformat(payload['production_date']).day == 15
+                                  else f"طلبت {payload['camera_count']} كاميرات، والمتاح في الاستوديو كاميرتان.")
+                        status, message = 'rejected', reason + ' لم يتم إنشاء أمر عمل.'
                     elif quote['total_sar'] > payload['budget_sar']:
                         status, message = 'rejected', f"العرض {quote['total_sar']} SAR يتجاوز الميزانية {payload['budget_sar']} SAR."
                     result = {'status': status, 'message': message, 'quote': quote, 'plan': body.brief_summary,
