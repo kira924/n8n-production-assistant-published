@@ -4,6 +4,10 @@ A browser-based production planning demo built with **n8n, Groq, FastAPI, and Po
 
 Built by [Khaled Abdulrahman](https://github.com/kira924).
 
+**[Open the live demo](https://n8n-production-assistant-published.vercel.app)** · [View the n8n workflow](workflows/production-plan.json)
+
+No account is required. After an idle period, the interface may briefly wait for the services to start.
+
 Submit a structured brief, receive a production plan and a verified SAR estimate, then explicitly approve or decline it. Approval creates one synthetic work order; declining, an unavailable resource, or an insufficient budget does not.
 
 **All resources, prices, and work orders are synthetic.** This demo does not book inventory, charge payments, or connect to a company's ERP.

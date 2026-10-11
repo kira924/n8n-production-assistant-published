@@ -15,8 +15,16 @@ The published workflow has been exercised with n8n 2.42.6 and an actual Groq key
 
 ## Cloud checks
 
+The [GitHub checks for the deployed runtime](https://github.com/kira924/n8n-production-assistant-published/actions/runs/38160320909) passed on October 11, 2026: **44 tests**, workflow policy checks, Compose startup, and the full cloud container's bootstrap/readiness/restart checks.
+
 Cloud boundary tests cover route isolation, stripped workflow headers, secure cookie forwarding, payload limits, and keeping the platform request open until the persisted planning result exists. PostgreSQL integration tests use disposable schemas to check persistence across application recreation and serialization of concurrent submissions from separate instances. Set `TEST_DATABASE_URL` to run them locally; CI provides a disposable PostgreSQL service.
 
-The cloud container CI builds the complete n8n/Python image, imports and publishes the workflow with a deliberately invalid test-only provider key, checks readiness and anonymous sessions, hides internal routes, and restarts the container. That startup check does not call Groq. A hosted deployment still requires its own real-provider and anonymous-access checks.
+The cloud container CI builds the complete n8n/Python image, imports and publishes the workflow with a deliberately invalid test-only provider key, checks readiness and anonymous sessions, hides internal routes, and restarts the container. That startup check does not call Groq.
+
+## Hosted integration
+
+The [live Vercel deployment](https://n8n-production-assistant-published.vercel.app) was independently tested over anonymous HTTPS with actual n8n, Groq, and Neon on October 11, 2026. All four cases passed: approval with repeat-approval idempotency, decline without an order, budget rejection, and resource-capacity rejection. Each plan used the observed `catalog`, `availability`, `quote` sequence. A different anonymous session could not read the requests. Internal service routes and the n8n editor returned 404. Persistent Neon records contained four jobs, two reviews, one work order, two encrypted n8n credentials, and one published workflow.
+
+These checks establish the listed behaviors with synthetic inputs. Free-tier quotas, cold starts, and provider availability still apply.
 
 The exported Compose configuration passed the official Compose CLI's `config --quiet` validation. CI also checks the web/API Compose build and route boundary. Docker Desktop was not installed locally. Browser automation was unavailable; a visual review of responsive layout remains a separate manual check.
