@@ -19,53 +19,70 @@
       <div class="intro-copy">
         <p class="eyebrow"><span></span> استوديو الإنتاج التجريبي</p>
         <h1>فكرة واضحة.<br>عرض محسوب.<br><em>والقرار ليك.</em></h1>
-        <p class="intro-text">اكتب طلب إنتاج، وشوف الوكيل يجهّز الخطة وعرض السعر. راجع النتيجة ووافق أو ارفض قبل إنشاء أمر العمل.</p>
+        <p class="intro-text">احكِ فكرتك بلغتك. المساعد يفهم الطلب ويقترح التجهيزات، ويسألك عن الناقص. راجع اقتراحه، ثم عرض السعر، قبل اعتماد أمر العمل.</p>
       </div>
       <div class="flow-card">
         <p class="small-label">مسار الطلب</p>
         <ol class="flow-preview">
-          <li><span>01</span><div><strong>طلب إنتاج</strong><p>الفكرة والموارد والميزانية</p></div></li>
-          <li><span>02</span><div><strong>خطة وعرض سعر</strong><p>أدوات فعلية وحسابات متحقّق منها</p></div></li>
+          <li><span>01</span><div><strong>احكِ فكرتك</strong><p>يفهم المكتوب ويقترح التجهيزات</p></div></li>
+          <li><span>02</span><div><strong>راجع اقتراحه</strong><p>تفاصيل واضحة ثم عرض محسوب</p></div></li>
           <li><span>03</span><div><strong>مراجعتك أولًا</strong><p>إنشاء أمر العمل بعد الموافقة</p></div></li>
         </ol>
         <p class="demo-notice">كل الأسعار والموارد وأوامر العمل في هذه التجربة مصطنعة. استخدم محتوى تجريبيًا بدون بيانات شخصية.</p>
       </div>
     </section>
 
+    <section class="catalog-panel" aria-labelledby="catalog-title">
+      <div><p class="small-label">الاستوديو التجريبي</p><h2 id="catalog-title">الموارد والأسعار المتاحة</h2><p class="section-help">المساعد يقرأ نفس الكتالوج عند اقتراح التجهيزات. التوافر يُراجع حسب طلبك؛ الاستوديو في صيانة يوم 15 من كل شهر.</p></div>
+      <div id="catalog-items" class="catalog-items" aria-live="polite"><p class="section-help">جاري تحميل الكتالوج…</p></div>
+    </section>
+
     <section class="workspace" aria-label="تجربة طلب الإنتاج">
       <div class="form-panel">
-        <div class="panel-heading"><div><p class="small-label">01 / الطلب</p><h2>جهّز طلبك</h2></div><span class="tag">SAR</span></div>
-        <p class="section-help">ابدأ بأحد الأمثلة، أو عدّل التفاصيل لتناسب فكرتك.</p>
+        <div class="panel-heading"><div><p class="small-label">01 / الفكرة</p><h2>احكِ طلبك</h2></div><span class="tag">SAR</span></div>
+        <p class="section-help">اكتب المحتوى المطلوب، واذكر الموعد والميزانية لو تعرفهم. المساعد يقترح باقي التجهيزات، وأي اقتراح تقدر تعدّله.</p>
         <div class="presets" role="group" aria-label="أمثلة جاهزة">
-          <button type="button" data-preset="valid" class="selected">طلب متاح</button>
-          <button type="button" data-preset="budget">ميزانية أقل</button>
-          <button type="button" data-preset="capacity">موارد غير متاحة</button>
+          <button type="button" data-preset="valid" class="selected">حوار مع ضيف</button>
+          <button type="button" data-preset="product">إعلان منتج</button>
+          <button type="button" data-preset="missing">طلب ناقص</button>
         </div>
+        <form id="brief-form">
+          <label class="field full"><span>فكرة الإنتاج</span><textarea id="brief" name="brief" minlength="10" maxlength="4000" required rows="5" placeholder="مثلًا: عايز أصوّر حوار مع ضيف للنشر على يوتيوب، بعد بكرة، بميزانية 3000 ريال. اقترح لي تجهيزات مناسبة."></textarea></label>
+          <button id="interpret-button" class="primary-button" type="submit">فهم الطلب واقتراح التجهيزات <span aria-hidden="true">←</span></button>
+          <p class="form-note">هتشوف إيه فهمه من كلامك وإيه اقترحه، قبل تجهيز أي عرض.</p>
+        </form>
+        <p id="form-error" class="error-banner" role="alert" hidden></p>
+        <section id="draft-section" class="draft-section" aria-labelledby="draft-title" hidden>
+          <p class="small-label">02 / فهم الطلب</p><h3 id="draft-title">ده اللي فهمته من طلبك</h3>
+          <p id="draft-summary" class="section-help"></p>
+          <div id="draft-cards" class="draft-cards"></div>
+          <div id="missing-section" class="missing-section" hidden><strong>محتاج أعرف منك</strong><ul id="missing-questions"></ul><p>استكمل الناقص في التفاصيل أدناه، أو أضفه لوصف طلبك وأعد التحليل.</p></div>
         <form id="production-form">
-          <label class="field full"><span>فكرة الإنتاج</span><textarea id="brief" name="brief" minlength="10" maxlength="4000" required rows="3">تصوير حوار قصير داخل الاستوديو بكاميرتين، مع صوت واضح ومونتاج نهائي للنشر.</textarea></label>
+          <details id="editable-details" class="editable-details"><summary>مراجعة وتعديل التفاصيل</summary>
           <div class="fields-grid">
             <label class="field"><span>تاريخ الإنتاج</span><input id="production-date" name="production_date" type="date" required></label>
-            <label class="field"><span>ساعات الاستوديو</span><input name="duration_hours" type="number" min="1" max="8" value="2" required></label>
-            <label class="field"><span>عدد الكاميرات</span><select name="camera_count"><option value="1">كاميرا واحدة</option><option value="2" selected>كاميرتان</option><option value="3">3 كاميرات</option></select></label>
-            <label class="field"><span>ساعات المونتاج</span><input name="editing_hours" type="number" min="0" max="8" value="2" required></label>
-            <label class="field full"><span>الميزانية <small>(SAR)</small></span><input name="budget_sar" type="number" min="1" max="1000000" value="3000" required></label>
+            <label class="field"><span>ساعات الاستوديو</span><input name="duration_hours" type="number" min="1" max="8" required></label>
+            <label class="field"><span>عدد الكاميرات</span><select name="camera_count" required><option value="">اختر العدد</option><option value="1">كاميرا واحدة</option><option value="2">كاميرتان</option><option value="3">3 كاميرات</option></select></label>
+            <label class="field"><span>ساعات المونتاج</span><input name="editing_hours" type="number" min="0" max="8" required></label>
+            <label class="field full"><span>الميزانية <small>(SAR)</small></span><input name="budget_sar" type="number" min="1" max="1000000" required></label>
+            <label class="field full"><span>تجهيز الصوت</span><select name="include_audio" required><option value="">اختر التجهيز</option><option value="true">مع تجهيز الصوت</option><option value="false">بدون تجهيز الصوت</option></select></label>
           </div>
-          <label class="check-field"><input name="include_audio" type="checkbox" checked><span>إضافة تجهيز الصوت</span><span class="audio-label">صوت واضح</span></label>
-          <button id="submit-button" class="primary-button" type="submit">تجهيز عرض السعر <span aria-hidden="true">←</span></button>
-          <p class="form-note">إرسال الطلب يجهّز عرضًا فقط. الموافقة خطوة منفصلة.</p>
-          <p id="form-error" class="error-banner" role="alert" hidden></p>
+          </details>
+          <button id="submit-button" class="primary-button" type="submit">اعتماد التفاصيل وتجهيز عرض السعر <span aria-hidden="true">←</span></button>
+          <p class="form-note">اعتماد التفاصيل يجهّز عرضًا فقط. إنشاء أمر العمل يحتاج موافقتك على العرض.</p>
         </form>
+        </section>
       </div>
 
       <div class="result-panel">
         <div class="panel-heading"><div><p class="small-label">02 / النتيجة</p><h2>من الطلب إلى القرار</h2></div><span id="status-label" class="status-pill">في انتظار طلبك</span></div>
         <div id="empty-state" class="empty-state">
           <div class="estimate-illustration" aria-hidden="true"><span class="paper-corner"></span><span class="paper-line long"></span><span class="paper-line"></span><span class="paper-line medium"></span><div class="paper-total">SAR <span>—</span></div><div class="check-stamp">✓</div></div>
-          <h3>كل التفاصيل في مكان واحد</h3>
-          <p>بعد إرسال الطلب، هتشوف خطة الإنتاج وبنود السعر ونتيجة التوافر، ثم تختار الخطوة التالية.</p>
-          <div class="empty-tags"><span>عرض متحقّق منه</span><span>موافقة صريحة</span><span>أمر واحد لكل طلب</span></div>
+          <h3>ابدأ بالفكرة… وسيب التفاصيل للمساعد</h3>
+          <p>هيستخرج المطلوب من كلامك، ويشرح تجهيزات اقترحها. بعد مراجعتك، هنراجع التوافر ونحسب العرض من الكتالوج.</p>
+          <div class="empty-tags"><span>فهم الطلب</span><span>اقتراحات قابلة للتعديل</span><span>اعتمادك أولًا</span></div>
         </div>
-        <div id="planning-state" class="planning-state" role="status" hidden><span class="spinner"></span><h3>جاري تجهيز العرض…</h3><p>الوكيل بيستدعي الكتالوج والتوافر والتسعير. النتيجة هتظهر بعد التحقق.</p></div>
+        <div id="planning-state" class="planning-state" role="status" hidden><span class="spinner"></span><h3 id="progress-title">جاري تجهيز العرض…</h3><p id="progress-copy">المساعد بيراجع الكتالوج والتوافر والتسعير. النتيجة هتظهر بعد التحقق.</p></div>
         <div id="result-content" hidden>
           <p id="result-message" class="result-message" role="status"></p>
           <div id="quote-section" hidden>
